@@ -7,6 +7,8 @@ import (
 	"github.com/natalieparellano/translator/parser"
 )
 
+const baseTemp = 5
+
 var doneCount = 0
 
 func WriteArithmetic(c parser.Command) string {
@@ -58,7 +60,6 @@ func arithmeticSub() string {
 		loadXY() +
 		"M=M-D\n" +
 		"// done\n"
-
 }
 
 func arithmeticNeg() string {
@@ -67,7 +68,6 @@ func arithmeticNeg() string {
 		dereferenceSP() +
 		"M=-M\n" +
 		"// done\n"
-
 }
 
 func arithmeticComparison(comparison string) string {
@@ -103,7 +103,6 @@ func arithmeticAnd() string {
 		loadXY() +
 		"M=D&M\n" +
 		"// done\n"
-
 }
 
 func arithmeticOr() string {
@@ -111,7 +110,6 @@ func arithmeticOr() string {
 		loadXY() +
 		"M=D|M\n" +
 		"// done\n"
-
 }
 
 func arithmeticNot() string {
@@ -120,19 +118,18 @@ func arithmeticNot() string {
 		dereferenceSP() +
 		"M=!M\n" +
 		"// done\n"
-
 }
 
 // Return base address for segment
-func baseAddress(segment string) int {
-	segBaseMap := map[string]int{
-		"SP":   0,
-		"LCL":  1,
-		"ARG":  2,
-		"THIS": 3,
-		"THAT": 4,
+func segPointer(segment string) int {
+	segMap := map[string]int{
+		"SP":       0,
+		"LOCAL":    1,
+		"ARGUMENT": 2,
+		"THIS":     3,
+		"THAT":     4,
 	}
-	return segBaseMap[strings.ToUpper(segment)]
+	return segMap[strings.ToUpper(segment)]
 }
 
 // Decrement Stack Pointer
@@ -141,7 +138,6 @@ func decrementSP() string {
 		"@SP\n" +
 		"M=M-1\n" +
 		"// done\n"
-
 }
 
 // Dereference Stack Pointer
@@ -150,17 +146,25 @@ func dereferenceSP() string {
 		"@SP\n" +
 		"A=M\n" +
 		"// done\n"
-
 }
 
 // Dereference Segment
-func dereferenceSegment(segment string, index int) string {
-	comment := fmt.Sprintf("// Accessing value in %s %d\n", segment, index)
-	addr := baseAddress(segment) + index
-	return comment +
-		fmt.Sprintf("@%d\n", addr) +
-		"// done\n"
-
+func dereferenceSegment(segment string, offset int) string {
+	comment := fmt.Sprintf("// Accessing value in %s %d\n", segment, offset)
+	switch segment {
+	case "temp":
+		addr := baseTemp + offset
+		return comment +
+			fmt.Sprintf("@%d\n", addr) +
+			"// done\n"
+	default:
+		return comment +
+			fmt.Sprintf("@%d\n", segPointer(segment)) + // goto segment e.g., LOCAL
+			"D=M\n" + // find address that LOCAL points to; store in data register
+			fmt.Sprintf("@%d\n", offset) + // load offset
+			"A=D+A\n" + // add offset to base address, goto
+			"// done\n"
+	}
 }
 
 // Increment Stack Pointer
@@ -169,22 +173,22 @@ func incrementSP() string {
 		"@SP\n" +
 		"M=M+1\n" +
 		"// done\n"
-
 }
 
 // Load value from segment into data register
 func loadSegment(segment string, index int) string {
-	if segment == "constant" {
+	switch segment {
+	case "constant":
 		return "// Loading constant\n" +
 			fmt.Sprintf("@%d\n", index) +
 			"D=A\n" +
 			"// done\n"
-
+	default:
+		return "// Loading segment\n" +
+			dereferenceSegment(segment, index) +
+			"D=M\n" +
+			"// done\n"
 	}
-	return dereferenceSegment(segment, index) +
-		"D=M\n" +
-		"// done\n"
-
 }
 
 // Load top of stack (y) into D register, dereference second-to-top of stack (x)
@@ -196,19 +200,22 @@ func loadXY() string {
 		decrementSP() +
 		dereferenceSP() +
 		"// done\n"
-
 }
 
 // Pop into segment from stack
 func pop(segment string, index int) string {
 	return fmt.Sprintf("// pop %s %d\n", segment, index) +
+		dereferenceSegment(segment, index) +
+		"D=A\n" + // get the address to come back to
+		"@R13\n" +
+		"M=D\n" + // store the value in memory
 		decrementSP() +
 		dereferenceSP() +
-		"D=M\n" +
-		dereferenceSegment(segment, index) +
+		"D=M\n" + // get the value to pop
+		"@R13\n" +
+		"A=M\n" +
 		"M=D\n" +
 		"// done\n"
-
 }
 
 // Push onto stack from segment
@@ -218,5 +225,4 @@ func push(segment string, index int) string {
 		dereferenceSP() +
 		"M=D\n" +
 		"// done\n"
-
 }
