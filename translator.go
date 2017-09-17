@@ -3,6 +3,8 @@ package main
 import (
 	"fmt"
 	"os"
+	"path/filepath"
+	"strings"
 
 	"github.com/natalieparellano/assembler/hackfile"
 	"github.com/natalieparellano/translator/codewriter"
@@ -15,6 +17,8 @@ func main() {
 	}
 	path := os.Args[1]
 	fmt.Printf("Parsing file: %s\n", path)
+	basename := filepath.Base(path)
+	codewriter.Filename = strings.TrimSuffix(basename, filepath.Ext(basename))
 
 	commands := parser.Parse(path)
 	var ret string

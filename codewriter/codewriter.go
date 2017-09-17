@@ -8,6 +8,7 @@ import (
 )
 
 var doneCount = 0
+var Filename string
 
 func WriteArithmetic(c parser.Command) string {
 	if c.Type != "C_ARITHMETIC" {
@@ -119,7 +120,7 @@ func arithmeticNot() string {
 }
 
 // Return base address for segment
-func segPointer(segment string) int {
+func baseAddressForSegment(segment string) int {
 	segMap := map[string]int{
 		"SP":       0,
 		"LOCAL":    1,
@@ -166,7 +167,7 @@ func dereferenceSegment(segment string, offset int) string {
 
 // Dereference default
 func dereferenceDefault(segment string, offset int) string {
-	return fmt.Sprintf("@%d\n", segPointer(segment)) + // goto segment e.g., LOCAL
+	return fmt.Sprintf("@%d\n", baseAddressForSegment(segment)) + // goto segment e.g., LOCAL
 		"D=M\n" + // find address that LOCAL points to; store in data register
 		fmt.Sprintf("@%d\n", offset) + // load offset
 		"A=D+A\n" + // add offset to base address, goto
@@ -177,9 +178,9 @@ func dereferenceDefault(segment string, offset int) string {
 func dereferencePointer(offset int) string {
 	switch offset {
 	case 0:
-		return fmt.Sprintf("@%d\n", segPointer("this"))
+		return fmt.Sprintf("@%d\n", baseAddressForSegment("this"))
 	case 1:
-		return fmt.Sprintf("@%d\n", segPointer("that"))
+		return fmt.Sprintf("@%d\n", baseAddressForSegment("that"))
 	default:
 		panic(fmt.Sprintf("Error: invalid offset for pointer: %s", offset)) // TODO: this function should return an error
 	}
@@ -187,12 +188,13 @@ func dereferencePointer(offset int) string {
 
 // Dereference static
 func dereferenceStatic(offset int) string {
-	panic(fmt.Sprintf("Error: not implemented"))
+	symbol := fmt.Sprintf("%s.%d", Filename, offset)
+	return fmt.Sprintf("@%s\n", symbol)
 }
 
 // Dereference temp
 func dereferenceTemp(offset int) string {
-	addr := segPointer("temp") + offset
+	addr := baseAddressForSegment("temp") + offset
 	if addr < 5 || addr > 15 {
 		panic(fmt.Sprintf("Error: invalid offset for temp: %d", offset))
 	}
