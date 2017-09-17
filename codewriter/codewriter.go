@@ -7,13 +7,11 @@ import (
 	"github.com/natalieparellano/translator/parser"
 )
 
-const baseTemp = 5
-
 var doneCount = 0
 
 func WriteArithmetic(c parser.Command) string {
 	if c.Type != "C_ARITHMETIC" {
-		panic(fmt.Sprintf("Called WriteArithmetic with invalid command: type %s", c.Type))
+		panic(fmt.Sprintf("Error: called WriteArithmetic with invalid command: type %s", c.Type))
 	}
 	var ret string
 	switch c.Arg1 {
@@ -128,6 +126,7 @@ func segPointer(segment string) int {
 		"ARGUMENT": 2,
 		"THIS":     3,
 		"THAT":     4,
+		"TEMP":     5,
 	}
 	return segMap[strings.ToUpper(segment)]
 }
@@ -151,20 +150,54 @@ func dereferenceSP() string {
 // Dereference Segment
 func dereferenceSegment(segment string, offset int) string {
 	comment := fmt.Sprintf("// Accessing value in %s %d\n", segment, offset)
+	var ret string
 	switch segment {
+	case "pointer":
+		ret = dereferencePointer(offset)
+	case "static":
+		ret = dereferenceStatic(offset)
 	case "temp":
-		addr := baseTemp + offset
-		return comment +
-			fmt.Sprintf("@%d\n", addr) +
-			"// done\n"
+		ret = dereferenceTemp(offset)
 	default:
-		return comment +
-			fmt.Sprintf("@%d\n", segPointer(segment)) + // goto segment e.g., LOCAL
-			"D=M\n" + // find address that LOCAL points to; store in data register
-			fmt.Sprintf("@%d\n", offset) + // load offset
-			"A=D+A\n" + // add offset to base address, goto
-			"// done\n"
+		ret = dereferenceDefault(segment, offset)
 	}
+	return comment + ret
+}
+
+// Dereference default
+func dereferenceDefault(segment string, offset int) string {
+	return fmt.Sprintf("@%d\n", segPointer(segment)) + // goto segment e.g., LOCAL
+		"D=M\n" + // find address that LOCAL points to; store in data register
+		fmt.Sprintf("@%d\n", offset) + // load offset
+		"A=D+A\n" + // add offset to base address, goto
+		"// done\n"
+}
+
+// Dereference pointer
+func dereferencePointer(offset int) string {
+	switch offset {
+	case 0:
+		return fmt.Sprintf("@%d\n", segPointer("this"))
+	case 1:
+		return fmt.Sprintf("@%d\n", segPointer("that"))
+	default:
+		panic(fmt.Sprintf("Error: invalid offset for pointer: %s", offset)) // TODO: this function should return an error
+	}
+}
+
+// Dereference static
+func dereferenceStatic(offset int) string {
+	panic(fmt.Sprintf("Error: not implemented"))
+}
+
+// Dereference temp
+func dereferenceTemp(offset int) string {
+	addr := segPointer("temp") + offset
+	if addr < 5 || addr > 15 {
+		panic(fmt.Sprintf("Error: invalid offset for temp: %d", offset))
+	}
+	return fmt.Sprintf("@%d\n", addr) +
+		"// done\n"
 }
 
 // Increment Stack Pointer
