@@ -71,14 +71,13 @@ func arithmeticNeg() string {
 
 func arithmeticComparison(comparison string) string {
 	ret := fmt.Sprintf("// Comparing x and y using %s\n", comparison) +
-		loadXY() +
-		"D=M-D\n" +
-		dereferenceSP() +
-		"M=-1\n" +
-		fmt.Sprintf("@DONE%d\n", doneCount) +
-		fmt.Sprintf("D;%s\n", comparison) +
-		dereferenceSP() +
-		"M=0\n" +
+		loadXY() + // D contains y, M contains x, A contains SP
+		"D=M-D\n" + // D contains x-y
+		"M=-1\n" + // save "true" to top of stack
+		fmt.Sprintf("@DONE%d\n", doneCount) + // A contains address of code to jump to if condition satisfied; M no longer contains top of stack!
+		fmt.Sprintf("D;%s\n", comparison) + // jump ahead in code if condition satisfied
+		dereferenceSP() + // reset A & M
+		"M=0\n" + // save "false" to top of stack
 		fmt.Sprintf("(DONE%d)\n", doneCount) +
 		"// done\n"
 	doneCount++
