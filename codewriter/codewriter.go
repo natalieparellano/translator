@@ -10,9 +10,20 @@ import (
 var doneCount = 0
 var Filename string
 
-func WriteArithmetic(c parser.Command) string {
+func Write(c parser.Command) string {
+	switch c.Type {
+	case "C_ARITHMETIC":
+		return writeArithmetic(c)
+	case "C_PUSH", "C_POP":
+		return writePushPop(c)
+	default:
+		return ""
+	}
+}
+
+func writeArithmetic(c parser.Command) string {
 	if c.Type != "C_ARITHMETIC" {
-		panic(fmt.Sprintf("Error: called WriteArithmetic with invalid command: type %s", c.Type))
+		panic(fmt.Sprintf("Error: called writeArithmetic with invalid command: type %s", c.Type))
 	}
 	var ret string
 	switch c.Arg1 {
@@ -38,7 +49,7 @@ func WriteArithmetic(c parser.Command) string {
 	return ret + incrementSP()
 }
 
-func WritePushPop(c parser.Command) string {
+func writePushPop(c parser.Command) string {
 	if c.Type == "C_PUSH" {
 		return push(c.Arg1, c.Arg2) +
 			incrementSP()

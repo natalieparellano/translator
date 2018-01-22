@@ -24,14 +24,7 @@ func main() {
 	var ret string
 
 	for _, command := range commands {
-		var res string
-		switch command.Type {
-		case "C_ARITHMETIC":
-			res = codewriter.WriteArithmetic(command)
-		case "C_PUSH", "C_POP":
-			res = codewriter.WritePushPop(command)
-		}
-		ret += res
+		ret += codewriter.Write(command)
 	}
 
 	newpath := hackfile.NewPath(path, "vm", "asm")
