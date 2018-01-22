@@ -8,14 +8,23 @@ import (
 )
 
 var doneCount = 0
+var baseAddressForTemp = 5
 var Filename string
 
 func Write(c parser.Command) string {
 	switch c.Type {
 	case "C_ARITHMETIC":
 		return writeArithmetic(c)
-	case "C_PUSH", "C_POP":
-		return writePushPop(c)
+	case "C_GOTO":
+		return writeGoto(c)
+	case "C_IF":
+		return writeIf(c)
+	case "C_LABEL":
+		return writeLabel(c)
+	case "C_POP":
+		return writePop(c.Arg1, c.Arg2)
+	case "C_PUSH":
+		return writePush(c.Arg1, c.Arg2)
 	default:
 		return ""
 	}
@@ -49,12 +58,50 @@ func writeArithmetic(c parser.Command) string {
 	return ret + incrementSP()
 }
 
-func writePushPop(c parser.Command) string {
-	if c.Type == "C_PUSH" {
-		return push(c.Arg1, c.Arg2) +
-			incrementSP()
-	}
-	return pop(c.Arg1, c.Arg2)
+func writeGoto(c parser.Command) string {
+	return fmt.Sprintf("// Adding jump to %s", c.Arg1) +
+		fmt.Sprintf("@%s\n", c.Arg1) +
+		"0;JMP\n"
+}
+
+func writeIf(c parser.Command) string {
+	return fmt.Sprintf("// Adding conditional jump to %s", c.Arg1) +
+		decrementSP() +
+		dereferenceSP() +
+		"D=M\n" +
+		fmt.Sprintf("@%s\n", c.Arg1) +
+		"D;JNE\n"
+}
+
+func writeLabel(c parser.Command) string {
+	return "// Adding label\n" +
+		fmt.Sprintf("(%s)\n", c.Arg1)
+}
+
+// Pop into segment from stack
+func writePop(segment string, index int) string {
+	return fmt.Sprintf("// pop %s %d\n", segment, index) +
+		dereferenceSegment(segment, index) +
+		"D=A\n" + // get the address to come back to
+		"@R13\n" +
+		"M=D\n" + // store the value in memory
+		decrementSP() +
+		dereferenceSP() +
+		"D=M\n" + // get the value to pop
+		"@R13\n" +
+		"A=M\n" +
+		"M=D\n" +
+		"// done\n"
+}
+
+// Push onto stack from segment
+func writePush(segment string, index int) string {
+	return fmt.Sprintf("// push %s %d\n", segment, index) +
+		loadSegment(segment, index) +
+		dereferenceSP() +
+		"M=D\n" +
+		incrementSP() +
+		"// done\n"
 }
 
 // Helper Methods
@@ -130,14 +177,12 @@ func arithmeticNot() string {
 }
 
 // Return base address for segment
-func baseAddressForSegment(segment string) int {
-	segMap := map[string]int{
-		"SP":       0,
-		"LOCAL":    1,
-		"ARGUMENT": 2,
-		"THIS":     3,
-		"THAT":     4,
-		"TEMP":     5,
+func standardizeSegment(segment string) string {
+	segMap := map[string]string{
+		"LOCAL":    "LCL",
+		"ARGUMENT": "ARG",
+		"THIS":     "THIS",
+		"THAT":     "THAT",
 	}
 	return segMap[strings.ToUpper(segment)]
 }
@@ -177,7 +222,7 @@ func dereferenceSegment(segment string, offset int) string {
 
 // Dereference default
 func dereferenceDefault(segment string, offset int) string {
-	return fmt.Sprintf("@%d\n", baseAddressForSegment(segment)) + // goto segment e.g., LOCAL
+	return fmt.Sprintf("@%s\n", standardizeSegment(segment)) + // goto segment e.g., LOCAL
 		"D=M\n" + // find address that LOCAL points to; store in data register
 		fmt.Sprintf("@%d\n", offset) + // load offset
 		"A=D+A\n" + // add offset to base address, goto
@@ -188,9 +233,9 @@ func dereferenceDefault(segment string, offset int) string {
 func dereferencePointer(offset int) string {
 	switch offset {
 	case 0:
-		return fmt.Sprintf("@%d\n", baseAddressForSegment("this"))
+		return "@THIS\n"
 	case 1:
-		return fmt.Sprintf("@%d\n", baseAddressForSegment("that"))
+		return "@THAT\n"
 	default:
 		panic(fmt.Sprintf("Error: invalid offset for pointer: %s", offset)) // TODO: this function should return an error
 	}
@@ -204,7 +249,7 @@ func dereferenceStatic(offset int) string {
 
 // Dereference temp
 func dereferenceTemp(offset int) string {
-	addr := baseAddressForSegment("temp") + offset
+	addr := baseAddressForTemp + offset
 	if addr < 5 || addr > 15 {
 		panic(fmt.Sprintf("Error: invalid offset for temp: %d", offset))
 	}
@@ -244,30 +289,5 @@ func loadXY() string {
 		"D=M\n" +
 		decrementSP() +
 		dereferenceSP() +
-		"// done\n"
-}
-
-// Pop into segment from stack
-func pop(segment string, index int) string {
-	return fmt.Sprintf("// pop %s %d\n", segment, index) +
-		dereferenceSegment(segment, index) +
-		"D=A\n" + // get the address to come back to
-		"@R13\n" +
-		"M=D\n" + // store the value in memory
-		decrementSP() +
-		dereferenceSP() +
-		"D=M\n" + // get the value to pop
-		"@R13\n" +
-		"A=M\n" +
-		"M=D\n" +
-		"// done\n"
-}
-
-// Push onto stack from segment
-func push(segment string, index int) string {
-	return fmt.Sprintf("// push %s %d\n", segment, index) +
-		loadSegment(segment, index) +
-		dereferenceSP() +
-		"M=D\n" +
 		"// done\n"
 }
