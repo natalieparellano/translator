@@ -58,7 +58,9 @@ func arg1(line string) string {
 	switch lineType {
 	case "C_ARITHMETIC":
 		return line
-	case "C_PUSH", "C_POP", "C_FUNCTION", "C_CALL":
+	case "C_RETURN":
+		return ""
+	default:
 		return strings.Split(line, " ")[1]
 	}
 	return ""
