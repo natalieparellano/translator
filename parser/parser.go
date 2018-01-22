@@ -77,19 +77,23 @@ func arg2(line string) int {
 }
 
 func commandType(line string) string {
-	re := regexp.MustCompile(`add|sub|neg|eq|gt|lt|and|or|not`)
-	if res := re.FindStringSubmatch(line); res != nil {
-		return "C_ARITHMETIC"
+	lineMap := map[string]string{
+		"add|sub|neg|eq|gt|lt|and|or|not": "C_ARITHMETIC",
+		"push":     "C_PUSH",
+		"pop":      "C_POP",
+		"label":    "C_LABEL",
+		"^goto":    "C_GOTO",
+		"if-goto":  "C_IF",
+		"function": "C_FUNCTION",
+		"return":   "C_RETURN",
+		"call":     "C_CALL",
 	}
 
-	re = regexp.MustCompile(`push`)
-	if res := re.FindStringSubmatch(line); res != nil {
-		return "C_PUSH"
-	}
-
-	re = regexp.MustCompile(`pop`)
-	if res := re.FindStringSubmatch(line); res != nil {
-		return "C_POP"
+	for expr, ret := range lineMap {
+		re := regexp.MustCompile(expr)
+		if res := re.FindStringSubmatch(line); res != nil {
+			return ret
+		}
 	}
 
 	return ""
