@@ -59,23 +59,26 @@ func writeArithmetic(c parser.Command) string {
 }
 
 func writeGoto(c parser.Command) string {
-	return fmt.Sprintf("// Adding jump to %s", c.Arg1) +
+	return fmt.Sprintf("// Adding jump to %s\n", c.Arg1) +
 		fmt.Sprintf("@%s\n", c.Arg1) +
-		"0;JMP\n"
+		"0;JMP\n" +
+		"// done\n"
 }
 
 func writeIf(c parser.Command) string {
-	return fmt.Sprintf("// Adding conditional jump to %s", c.Arg1) +
+	return fmt.Sprintf("// Adding conditional jump to %s\n", c.Arg1) +
 		decrementSP() +
 		dereferenceSP() +
 		"D=M\n" +
 		fmt.Sprintf("@%s\n", c.Arg1) +
-		"D;JNE\n"
+		"D;JNE\n" +
+		"// done\n"
 }
 
 func writeLabel(c parser.Command) string {
 	return "// Adding label\n" +
-		fmt.Sprintf("(%s)\n", c.Arg1)
+		fmt.Sprintf("(%s)\n", c.Arg1) +
+		"// done\n"
 }
 
 // Pop into segment from stack
@@ -225,8 +228,7 @@ func dereferenceDefault(segment string, offset int) string {
 	return fmt.Sprintf("@%s\n", standardizeSegment(segment)) + // goto segment e.g., LOCAL
 		"D=M\n" + // find address that LOCAL points to; store in data register
 		fmt.Sprintf("@%d\n", offset) + // load offset
-		"A=D+A\n" + // add offset to base address, goto
-		"// done\n"
+		"A=D+A\n" // add offset to base address, goto
 }
 
 // Dereference pointer
@@ -237,7 +239,7 @@ func dereferencePointer(offset int) string {
 	case 1:
 		return "@THAT\n"
 	default:
-		panic(fmt.Sprintf("Error: invalid offset for pointer: %s", offset)) // TODO: this function should return an error
+		panic(fmt.Sprintf("Error: invalid offset for pointer: %d", offset)) // TODO: this function should return an error
 	}
 }
 
@@ -253,8 +255,7 @@ func dereferenceTemp(offset int) string {
 	if addr < 5 || addr > 15 {
 		panic(fmt.Sprintf("Error: invalid offset for temp: %d", offset))
 	}
-	return fmt.Sprintf("@%d\n", addr) +
-		"// done\n"
+	return fmt.Sprintf("@%d\n", addr)
 }
 
 // Increment Stack Pointer

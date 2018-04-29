@@ -24,7 +24,13 @@ func main() {
 	var ret string
 
 	for _, command := range commands {
-		ret += codewriter.Write(command)
+		fmt.Printf("Command: type: %s, arg1: %s, arg2: %d\n",
+			command.Type, command.Arg1, command.Arg2)
+
+		toWrite := codewriter.Write(command)
+		fmt.Printf("Assembly: %s\n", toWrite)
+
+		ret += toWrite
 	}
 
 	newpath := hackfile.NewPath(path, "vm", "asm")

@@ -36,8 +36,6 @@ func Parse(filepath string) []Command {
 		}
 		command = parseCommand(line)
 		commands = append(commands, command)
-		fmt.Printf("Command: type: %s, arg1: %s, arg2: %d\n",
-			command.Type, command.Arg1, command.Arg2)
 		count += 1
 	}
 	fmt.Printf("Found %d lines of code\n", count)
