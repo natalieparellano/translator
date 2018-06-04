@@ -14,25 +14,27 @@ var Filename string
 func Write(c parser.Command) string {
 	switch c.Type {
 	case "C_ARITHMETIC":
-		return writeArithmetic(c)
+		return writeArithmetic(c.Arg1)
 	case "C_GOTO":
-		return writeGoto(c)
+		return writeGoto(c.Arg1)
 	case "C_IF":
-		return writeIf(c)
+		return writeIf(c.Arg1)
 	case "C_LABEL":
-		return writeLabel(c)
+		return writeLabel(c.Arg1)
 	case "C_POP":
 		return writePop(c.Arg1, c.Arg2)
 	case "C_PUSH":
 		return writePush(c.Arg1, c.Arg2)
+	case "C_FUNCTION":
+		return writeFunction(c.Arg1, c.Arg2)
 	default:
 		return ""
 	}
 }
 
-func writeArithmetic(c parser.Command) string {
+func writeArithmetic(operation string) string {
 	var ret []string
-	switch c.Arg1 {
+	switch operation {
 	case "add":
 		ret = arithmeticAdd()
 	case "sub":
@@ -56,26 +58,39 @@ func writeArithmetic(c parser.Command) string {
 	return strings.Join(ret, "\n")
 }
 
-func writeGoto(c parser.Command) string {
-	return strings.Join(indentedLines(comment(fmt.Sprintf("Adding jump to %s", c.Arg1)),
-		fmt.Sprintf("@%s", c.Arg1),
+func writeFunction(functionName string, kLocals int) string {
+	var lines []string
+	lines = append(lines, label(functionName)...)
+	for i := 0; i < kLocals; i++ {
+		lines = append(lines, push("constant", 0)...)
+	}
+	return strings.Join(indentedLines(lines...), "\n")
+}
+
+func writeGoto(label string) string {
+	return strings.Join(indentedLines(comment(fmt.Sprintf("Adding jump to %s", label)),
+		fmt.Sprintf("@%s", label),
 		"0;JMP"), "\n")
 }
 
-func writeIf(c parser.Command) string {
+func writeIf(label string) string {
 	var lines []string
-	lines = append(lines, comment(fmt.Sprintf("Adding conditional jump to %s", c.Arg1)))
+	lines = append(lines, comment(fmt.Sprintf("Adding conditional jump to %s", label)))
 	lines = append(lines, decrementSP()...)
 	lines = append(lines, dereferenceSP()...)
 	lines = append(lines, "D=M")
-	lines = append(lines, fmt.Sprintf("@%s", c.Arg1))
+	lines = append(lines, fmt.Sprintf("@%s", label))
 	lines = append(lines, "D;JNE")
 	return strings.Join(indentedLines(lines...), "\n")
 }
 
-func writeLabel(c parser.Command) string {
-	return strings.Join(indentedLines(comment("Adding label"),
-		fmt.Sprintf("(%s)", c.Arg1)), "\n")
+func writeLabel(str string) string {
+	return strings.Join(label(str), "\n")
+}
+
+func label(label string) []string {
+	return indentedLines(comment("Adding label"),
+		fmt.Sprintf("(%s)", label))
 }
 
 // Pop into segment from stack
@@ -97,13 +112,17 @@ func writePop(segment string, index int) string {
 
 // Push onto stack from segment
 func writePush(segment string, index int) string {
+	return strings.Join(push(segment, index), "\n")
+}
+
+func push(segment string, index int) []string {
 	var lines []string
 	lines = append(lines, comment(fmt.Sprintf("push %s %d", segment, index)))
 	lines = append(lines, loadSegment(segment, index)...)
 	lines = append(lines, dereferenceSP()...)
 	lines = append(lines, "M=D")
 	lines = append(lines, incrementSP()...)
-	return strings.Join(indentedLines(lines...), "\n")
+	return indentedLines(lines...)
 }
 
 // Helper Methods
