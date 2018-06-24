@@ -8,31 +8,73 @@ import (
 )
 
 var doneCount = 0
+var returnCount = 0
 var baseAddressForTemp = 5
 var Filename string
 
 func Write(c parser.Command) string {
+	var lines []string
 	switch c.Type {
 	case "C_ARITHMETIC":
-		return writeArithmetic(c.Arg1)
+		lines = doArithmetic(c.Arg1)
 	case "C_GOTO":
-		return writeGoto(c.Arg1)
+		lines = doGoto(c.Arg1)
 	case "C_IF":
-		return writeIf(c.Arg1)
+		lines = doIf(c.Arg1)
 	case "C_LABEL":
-		return writeLabel(c.Arg1)
+		lines = label(c.Arg1)
 	case "C_POP":
-		return writePop(c.Arg1, c.Arg2)
+		lines = pop(c.Arg1, c.Arg2)
 	case "C_PUSH":
-		return writePush(c.Arg1, c.Arg2)
+		lines = push(c.Arg1, c.Arg2)
 	case "C_FUNCTION":
-		return writeFunction(c.Arg1, c.Arg2)
-	default:
-		return ""
+		lines = declareFunction(c.Arg1, c.Arg2)
+	case "C_RETURN":
+		lines = returnFunction()
+	case "C_CALL":
+		lines = callFunction(c.Arg1, c.Arg2)
 	}
+	return strings.Join(lines, "\n")
 }
 
-func writeArithmetic(operation string) string {
+func WriteBootstap() string {
+	var lines []string
+	lines = append(lines, indentedLines(comment("Setting SP to 256"),
+		"@256",
+		"D=A",
+		"@SP",
+		"M=D")...)
+	lines = append(lines, doGoto("Sys.init")...)
+	return strings.Join(lines, "\n")
+}
+
+func callFunction(name string, kArgs int) []string {
+	var lines []string
+	lines = append(lines, comment(fmt.Sprintf("Calling function %s with %d args", name, kArgs)))
+	lines = append(lines, pushRegister(fmt.Sprintf("RETURN%d", returnCount))...)
+	lines = append(lines, pushRegister("LCL")...)
+	lines = append(lines, pushRegister("ARG")...)
+	lines = append(lines, pushRegister("THIS")...)
+	lines = append(lines, pushRegister("THAT")...)
+	lines = append(lines, "@SP")
+	lines = append(lines, "D=M")
+	lines = append(lines, fmt.Sprintf("@%d", kArgs))
+	lines = append(lines, "D=D-A")
+	lines = append(lines, "@5")
+	lines = append(lines, "D=D-A")
+	lines = append(lines, "@ARG")
+	lines = append(lines, "M=D")
+	lines = append(lines, "@SP")
+	lines = append(lines, "D=M")
+	lines = append(lines, "@LCL")
+	lines = append(lines, "M=D")
+	lines = append(lines, doGoto(name)...)
+	lines = append(lines, label(fmt.Sprintf("RETURN%d", returnCount))...)
+	returnCount++
+	return (indentedLines(lines...))
+}
+
+func doArithmetic(operation string) []string {
 	var ret []string
 	switch operation {
 	case "add":
@@ -54,26 +96,26 @@ func writeArithmetic(operation string) string {
 	case "not":
 		ret = arithmeticNot()
 	}
-	ret = append(ret, incrementSP()...)
-	return strings.Join(ret, "\n")
+	return append(ret, incrementSP()...)
 }
 
-func writeFunction(functionName string, kLocals int) string {
+func declareFunction(functionName string, kLocals int) []string {
 	var lines []string
+	lines = append(lines, comment(fmt.Sprintf("Declaring function %s", functionName)))
 	lines = append(lines, label(functionName)...)
 	for i := 0; i < kLocals; i++ {
 		lines = append(lines, push("constant", 0)...)
 	}
-	return strings.Join(indentedLines(lines...), "\n")
+	return indentedLines(lines...)
 }
 
-func writeGoto(label string) string {
-	return strings.Join(indentedLines(comment(fmt.Sprintf("Adding jump to %s", label)),
+func doGoto(label string) []string {
+	return indentedLines(comment(fmt.Sprintf("Adding jump to %s", label)),
 		fmt.Sprintf("@%s", label),
-		"0;JMP"), "\n")
+		"0;JMP")
 }
 
-func writeIf(label string) string {
+func doIf(label string) []string {
 	var lines []string
 	lines = append(lines, comment(fmt.Sprintf("Adding conditional jump to %s", label)))
 	lines = append(lines, decrementSP()...)
@@ -81,11 +123,7 @@ func writeIf(label string) string {
 	lines = append(lines, "D=M")
 	lines = append(lines, fmt.Sprintf("@%s", label))
 	lines = append(lines, "D;JNE")
-	return strings.Join(indentedLines(lines...), "\n")
-}
-
-func writeLabel(str string) string {
-	return strings.Join(label(str), "\n")
+	return indentedLines(lines...)
 }
 
 func label(label string) []string {
@@ -93,8 +131,7 @@ func label(label string) []string {
 		fmt.Sprintf("(%s)", label))
 }
 
-// Pop into segment from stack
-func writePop(segment string, index int) string {
+func pop(segment string, index int) []string {
 	var lines []string
 	lines = append(lines, comment(fmt.Sprintf("pop %s %d", segment, index)))
 	lines = append(lines, dereferenceSegment(segment, index)...)
@@ -107,12 +144,7 @@ func writePop(segment string, index int) string {
 	lines = append(lines, "@R13")
 	lines = append(lines, "A=M")
 	lines = append(lines, "M=D")
-	return strings.Join(indentedLines(lines...), "\n")
-}
-
-// Push onto stack from segment
-func writePush(segment string, index int) string {
-	return strings.Join(push(segment, index), "\n")
+	return indentedLines(lines...)
 }
 
 func push(segment string, index int) []string {
@@ -122,6 +154,57 @@ func push(segment string, index int) []string {
 	lines = append(lines, dereferenceSP()...)
 	lines = append(lines, "M=D")
 	lines = append(lines, incrementSP()...)
+	return indentedLines(lines...)
+}
+
+func pushRegister(address string) []string {
+	var lines []string
+	lines = append(lines, comment(fmt.Sprintf("push %s", address)))
+	lines = append(lines, fmt.Sprintf("@%s", address))
+	lines = append(lines, "D=M")
+	lines = append(lines, dereferenceSP()...)
+	lines = append(lines, "M=D")
+	lines = append(lines, incrementSP()...)
+	return indentedLines(lines...)
+}
+
+func returnFunction() []string {
+	var lines []string
+	lines = append(lines, comment("Returning from function"))
+	lines = append(lines, fmt.Sprintf("@%s", standardizeSegment("LOCAL")))
+	lines = append(lines, "D=M") // FRAME
+	lines = append(lines, "@R14")
+	lines = append(lines, "M=D") // store FRAME in memory
+	lines = append(lines, "@5")
+	lines = append(lines, "A=D-A") // *(FRAME - 5)
+	lines = append(lines, "D=M")   // RET
+	lines = append(lines, "@R15")
+	lines = append(lines, "M=D") // store RET in memory
+	lines = append(lines, pop("ARGUMENT", 0)...)
+	lines = append(lines, dereferenceDefault(standardizeSegment("ARGUMENT"), 1, "+")...)
+	lines = append(lines, "D=A") // WARN: inefficient, previous instruction doesn't need to "goto" ARG+1
+	lines = append(lines, "@SP")
+	lines = append(lines, "M=D")                                // SP = ARG + 1
+	lines = append(lines, dereferenceDefault("R14", 1, "-")...) // *(FRAME - 1)
+	lines = append(lines, "D=M")
+	lines = append(lines, "@THAT")
+	lines = append(lines, "M=D")
+	lines = append(lines, dereferenceDefault("R14", 2, "-")...) // *(FRAME - 2)
+	lines = append(lines, "D=M")
+	lines = append(lines, "@THIS")
+	lines = append(lines, "M=D")
+	lines = append(lines, dereferenceDefault("R14", 3, "-")...) // *(FRAME - 3)
+	lines = append(lines, "D=M")
+	lines = append(lines, "@ARG")
+	lines = append(lines, "M=D")
+	lines = append(lines, dereferenceDefault("R14", 4, "-")...) // *(FRAME - 4)
+	lines = append(lines, "D=M")
+	lines = append(lines, "@LCL")
+	lines = append(lines, "M=D")
+	lines = append(lines, "@R15")
+	lines = append(lines, "A=M")
+	lines = append(lines, "0;JMP")
+
 	return indentedLines(lines...)
 }
 
@@ -239,17 +322,23 @@ func dereferenceSegment(segment string, offset int) []string {
 	case "temp":
 		return dereferenceTemp(offset)
 	default:
-		return dereferenceDefault(segment, offset)
+		return dereferenceDefault(standardizeSegment(segment), offset, "+")
 	}
 }
 
 // Dereference default
-func dereferenceDefault(segment string, offset int) []string {
+func dereferenceDefault(segment string, offset int, operation string) []string {
+	switch operation {
+	case "+", "-":
+		// nop
+	default:
+		panic(fmt.Sprintf("dereferenceDefault called with invalid operation: %s", operation))
+	}
 	return indentedLines(comment(fmt.Sprintf("Accessing value in %s %d", segment, offset)),
-		fmt.Sprintf("@%s", standardizeSegment(segment)), // goto segment e.g., LOCAL
+		fmt.Sprintf("@%s", segment), // goto segment e.g., LOCAL
 		"D=M", // find address that LOCAL points to; store in data register
-		fmt.Sprintf("@%d", offset), // load offset
-		"A=D+A")                    // add offset to base address, goto
+		fmt.Sprintf("@%d", offset),       // load offset
+		fmt.Sprintf("A=D%sA", operation)) // add offset to base address, goto
 }
 
 // Dereference pointer
